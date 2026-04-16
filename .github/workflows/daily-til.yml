@@ -1,0 +1,202 @@
+name: Daily TIL
+
+on:
+  schedule:
+    # Randomized 3 triggers: morning/afternoon/evening KST
+    - cron: '15 0 * * 1-5'    # Mon-Fri ~09:15 KST
+    - cron: '40 4 * * 1-4'    # Mon-Thu ~13:40 KST
+    - cron: '10 8 * * 2,3,4'  # Tue-Thu ~17:10 KST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  daily-til:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate TIL entry
+        run: |
+          DAY_OF_WEEK=$(date +%u)
+          RAND=$((RANDOM % 100))
+
+          # Probability: Mon-Fri 65%, Sat 15%, Sun 8%
+          if [ "$DAY_OF_WEEK" -le 5 ]; then
+            THRESHOLD=65
+          elif [ "$DAY_OF_WEEK" -eq 6 ]; then
+            THRESHOLD=15
+          else
+            THRESHOLD=8
+          fi
+
+          if [ "$RAND" -ge "$THRESHOLD" ]; then
+            echo "Skipping today (random skip for natural pattern)"
+            exit 0
+          fi
+
+          # Pick random category
+          CATEGORIES=("python" "go" "javascript" "docker" "git" "linux" "database" "devops" "api" "testing")
+          CAT=${CATEGORIES[$((RANDOM % ${#CATEGORIES[@]}))]}
+
+          # Pick random topic from pool
+          PYTHON_TOPICS=(
+            "walrus-operator|The walrus operator := assigns and returns a value in a single expression. Useful in while loops and comprehensions.|if (n := len(data)) > 10: print(f'{n} items')"
+            "dataclasses-frozen|Use @dataclass(frozen=True) to create immutable instances. Raises FrozenInstanceError on attribute assignment.|@dataclass(frozen=True)\nclass Point:\n    x: float\n    y: float"
+            "contextmanager|contextlib.contextmanager turns a generator into a context manager. yield separates setup from teardown.|@contextmanager\ndef timer():\n    start = time.time()\n    yield\n    print(f'{time.time()-start:.2f}s')"
+            "dict-merge|Python 3.9+ supports dict merging with the pipe operator.|merged = dict1 | dict2"
+            "pathlib-over-os|pathlib.Path is more readable than os.path for file operations.|path = Path('data') / 'file.csv'\npath.read_text()"
+            "functools-cache|@functools.cache provides unlimited memoization. Use @lru_cache(maxsize=N) for bounded cache.|@cache\ndef fib(n): return n if n < 2 else fib(n-1) + fib(n-2)"
+            "structural-pattern-matching|Python 3.10 match/case supports structural pattern matching with guards.|match command:\n    case ['go', direction]:\n        move(direction)"
+            "enumerate-start|enumerate() accepts a start parameter for custom index offset.|for i, item in enumerate(items, start=1): print(f'{i}. {item}')"
+            "itertools-chain|itertools.chain flattens multiple iterables without creating intermediate lists.|from itertools import chain\nall_items = list(chain(list1, list2, list3))"
+            "typing-protocol|typing.Protocol enables structural subtyping without inheritance.|class Drawable(Protocol):\n    def draw(self) -> None: ..."
+            "slots-dataclass|__slots__ in dataclasses reduces memory footprint by preventing __dict__ creation.|@dataclass(slots=True)\nclass Vector:\n    x: float\n    y: float"
+            "asyncio-gather|asyncio.gather runs multiple coroutines concurrently and collects results.|results = await asyncio.gather(fetch(url1), fetch(url2))"
+            "collections-counter|Counter.most_common(n) returns the n most frequent elements.|Counter(words).most_common(5)"
+            "string-removeprefix|str.removeprefix() and str.removesuffix() added in Python 3.9.|'test_file.py'.removeprefix('test_')"
+            "generator-send|generator.send() pushes a value into a paused generator.|def accumulator():\n    total = 0\n    while True:\n        total += yield total"
+          )
+
+          GO_TOPICS=(
+            "error-wrapping|Use fmt.Errorf with %w to wrap errors for unwrapping later.|return fmt.Errorf('query failed: %w', err)"
+            "defer-stack|Deferred calls execute LIFO. Use closure to capture loop variable.|for _, f := range files {\n    defer f.Close()\n}"
+            "context-timeout|context.WithTimeout cancels downstream work after a deadline.|ctx, cancel := context.WithTimeout(ctx, 5*time.Second)\ndefer cancel()"
+            "sync-once|sync.Once ensures a function runs exactly once across goroutines.|var once sync.Once\nonce.Do(func() { initDB() })"
+            "embed-directive|go:embed embeds files into the binary at compile time.|//go:embed config.json\nvar configBytes []byte"
+            "table-driven-tests|Table-driven tests use a slice of test cases for exhaustive coverage.|tests := []struct{ input, want string }{ ... }"
+            "slog-structured|log/slog provides structured logging with key-value pairs.|slog.Info('request', 'method', r.Method, 'path', r.URL.Path)"
+            "channels-direction|Directional channels enforce send-only or receive-only at compile time.|func producer(ch chan<- int) { ch <- 42 }"
+          )
+
+          JS_TOPICS=(
+            "optional-chaining|Optional chaining ?. short-circuits to undefined if a reference is nullish.|const city = user?.address?.city"
+            "structuredclone|structuredClone() deep-clones objects including nested structures.|const copy = structuredClone(original)"
+            "array-at|Array.at(-1) returns the last element without length calculation.|const last = arr.at(-1)"
+            "promise-allsettled|Promise.allSettled waits for all promises regardless of rejection.|const results = await Promise.allSettled([p1, p2, p3])"
+            "nullish-coalescing|The ?? operator returns the right operand only for null/undefined.|const port = config.port ?? 3000"
+            "object-groupby|Object.groupBy() groups array elements by a callback return value.|Object.groupBy(people, p => p.age >= 18 ? 'adult' : 'minor')"
+            "iterator-helpers|Iterator helpers like .map(), .filter(), .take() work lazily on iterators.|iter.filter(x => x > 0).take(5).toArray()"
+            "using-keyword|The using keyword auto-disposes resources when leaving scope.|using handle = getFileHandle()"
+          )
+
+          DOCKER_TOPICS=(
+            "multi-stage-build|Multi-stage builds reduce final image size by copying only artifacts.|FROM node:20 AS build\nRUN npm run build\nFROM nginx:alpine\nCOPY --from=build /app/dist /usr/share/nginx/html"
+            "healthcheck|HEALTHCHECK instruction tells Docker how to test container health.|HEALTHCHECK --interval=30s CMD curl -f http://localhost/ || exit 1"
+            "buildkit-cache|BuildKit cache mounts speed up package installation across builds.|RUN --mount=type=cache,target=/root/.cache pip install -r requirements.txt"
+            "compose-profiles|Docker Compose profiles selectively start services.|services:\n  debug:\n    profiles: [debug]\n    image: busybox"
+            "no-root-user|Run containers as non-root for security. Use USER directive.|RUN adduser -D appuser\nUSER appuser"
+          )
+
+          GIT_TOPICS=(
+            "bisect|git bisect uses binary search to find the commit that introduced a bug.|git bisect start\ngit bisect bad\ngit bisect good v1.0"
+            "worktree|git worktree lets you check out multiple branches simultaneously.|git worktree add ../feature-branch feature"
+            "reflog|git reflog shows all reference updates including resets and rebases.|git reflog\ngit reset --hard HEAD@{3}"
+            "stash-patch|git stash -p lets you selectively stash changes hunk by hunk.|git stash push -p -m 'partial save'"
+            "rerere|git rerere remembers how you resolved merge conflicts and reuses it.|git config rerere.enabled true"
+          )
+
+          LINUX_TOPICS=(
+            "xargs-parallel|xargs -P runs commands in parallel across multiple inputs.|find . -name '*.jpg' | xargs -P4 -I{} convert {} -resize 50% {}"
+            "ss-over-netstat|ss is faster than netstat for socket statistics.|ss -tulnp | grep :8080"
+            "journalctl-follow|journalctl -fu follows logs for a specific systemd service.|journalctl -fu nginx --since '5 min ago'"
+            "process-substitution|Process substitution <() lets you diff command outputs directly.|diff <(ls dir1) <(ls dir2)"
+            "heredoc-cat|Here-documents write multi-line content without echo chains.|cat <<'EOF' > config.yml\nkey: value\nEOF"
+          )
+
+          DB_TOPICS=(
+            "explain-analyze|EXPLAIN ANALYZE shows actual execution time and row counts.|EXPLAIN ANALYZE SELECT * FROM users WHERE age > 25"
+            "partial-index|Partial indexes only index rows matching a condition, saving space.|CREATE INDEX idx_active ON users(email) WHERE active = true"
+            "cte-recursive|Recursive CTEs traverse tree structures in a single query.|WITH RECURSIVE tree AS (\n  SELECT id, parent_id FROM nodes WHERE parent_id IS NULL\n  UNION ALL\n  SELECT n.id, n.parent_id FROM nodes n JOIN tree t ON n.parent_id = t.id\n)"
+            "upsert|INSERT ON CONFLICT handles upserts atomically.|INSERT INTO kv(key, val) VALUES('a', 1) ON CONFLICT(key) DO UPDATE SET val = EXCLUDED.val"
+            "lateral-join|LATERAL joins let subqueries reference earlier tables in FROM.|SELECT u.*, t.* FROM users u, LATERAL (SELECT * FROM tasks WHERE user_id = u.id LIMIT 3) t"
+          )
+
+          DEVOPS_TOPICS=(
+            "twelve-factor-config|Store config in environment variables, not in code or config files.|DATABASE_URL=postgres://... python app.py"
+            "health-vs-ready|Liveness probes restart; readiness probes stop traffic. Different purposes.|livenessProbe:\n  httpGet: {path: /healthz}\nreadinessProbe:\n  httpGet: {path: /ready}"
+            "blue-green-deploy|Blue-green deploys run two identical environments and switch traffic.|# Switch load balancer from blue to green after smoke test"
+            "gitops-pull|GitOps pull model: cluster watches repo for changes instead of CI pushing.|# ArgoCD syncs desired state from git to cluster"
+          )
+
+          API_TOPICS=(
+            "idempotency-key|Idempotency keys prevent duplicate operations on retry.|POST /payments\nIdempotency-Key: abc-123"
+            "pagination-cursor|Cursor pagination is more stable than offset for real-time data.|GET /items?cursor=eyJpZCI6MTAwfQ&limit=20"
+            "rate-limit-headers|Standard rate limit headers help clients self-throttle.|X-RateLimit-Limit: 100\nX-RateLimit-Remaining: 42\nX-RateLimit-Reset: 1620000000"
+            "etag-caching|ETag + If-None-Match enables conditional requests and 304 responses.|ETag: \"33a64df5\"\nIf-None-Match: \"33a64df5\" → 304 Not Modified"
+          )
+
+          TEST_TOPICS=(
+            "arrange-act-assert|AAA pattern structures tests into setup, execution, and verification.|# Arrange\nuser = create_user()\n# Act\nresult = user.login()\n# Assert\nassert result.ok"
+            "fixture-scope|pytest fixtures with scope='module' run once per module, not per test.|@pytest.fixture(scope='module')\ndef db(): return setup_test_db()"
+            "snapshot-testing|Snapshot tests capture output and compare against saved baseline.|expect(render(<Component />)).toMatchSnapshot()"
+            "property-based|Property-based tests generate random inputs to find edge cases.|@given(st.lists(st.integers()))\ndef test_sort(xs): assert sorted(sorted(xs)) == sorted(xs)"
+          )
+
+          # Select topic pool based on category
+          case "$CAT" in
+            python)     TOPICS=("${PYTHON_TOPICS[@]}") ;;
+            go)         TOPICS=("${GO_TOPICS[@]}") ;;
+            javascript) TOPICS=("${JS_TOPICS[@]}") ;;
+            docker)     TOPICS=("${DOCKER_TOPICS[@]}") ;;
+            git)        TOPICS=("${GIT_TOPICS[@]}") ;;
+            linux)      TOPICS=("${LINUX_TOPICS[@]}") ;;
+            database)   TOPICS=("${DB_TOPICS[@]}") ;;
+            devops)     TOPICS=("${DEVOPS_TOPICS[@]}") ;;
+            api)        TOPICS=("${API_TOPICS[@]}") ;;
+            testing)    TOPICS=("${TEST_TOPICS[@]}") ;;
+          esac
+
+          TOPIC=${TOPICS[$((RANDOM % ${#TOPICS[@]}))]}
+          IFS='|' read -r SLUG DESCRIPTION CODE <<< "$TOPIC"
+
+          # Check if file already exists (avoid duplicates)
+          FILEPATH="${CAT}/${SLUG}.md"
+          if [ -f "$FILEPATH" ]; then
+            echo "Topic already exists: $FILEPATH, skipping"
+            exit 0
+          fi
+
+          # Generate TIL file
+          DATE=$(date +%Y-%m-%d)
+          cat > "$FILEPATH" << TILEOF
+          # ${SLUG//-/ }
+
+          ${DESCRIPTION}
+
+          \`\`\`
+          ${CODE}
+          \`\`\`
+
+          _Learned on ${DATE}_
+          TILEOF
+
+          # Clean up leading whitespace from heredoc
+          sed -i 's/^          //' "$FILEPATH"
+
+          # Commit
+          git config user.name "kimhinton"
+          git config user.email "kim.hinton00@gmail.com"
+          git add "$FILEPATH"
+
+          # Varied commit messages
+          MESSAGES=(
+            "add til: ${CAT}/${SLUG}"
+            "learn: ${SLUG//-/ }"
+            "note: ${SLUG//-/ } in ${CAT}"
+            "til: ${SLUG//-/ }"
+          )
+          MSG=${MESSAGES[$((RANDOM % ${#MESSAGES[@]}))]}
+
+          # Random number of extra commits (1-3) for color variation
+          EXTRA=$((RANDOM % 3))
+          git commit -m "$MSG"
+
+          for i in $(seq 1 $EXTRA); do
+            echo "<!-- ref ${RANDOM} -->" >> "$FILEPATH"
+            git add "$FILEPATH"
+            git commit -m "update ${SLUG//-/ }"
+          done
+
+          git push
