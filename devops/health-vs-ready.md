@@ -7,3 +7,4 @@ livenessProbe:\n  httpGet: {path: /healthz}\nreadinessProbe:\n  httpGet: {path: 
 ```
 
 _Learned on 2026-04-24_
+<!-- ref 13342 -->
