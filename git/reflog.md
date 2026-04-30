@@ -7,3 +7,4 @@ git reflog\ngit reset --hard HEAD@{3}
 ```
 
 _Learned on 2026-04-30_
+<!-- ref 21287 -->
